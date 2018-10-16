@@ -12,10 +12,10 @@ $ pip install iam-starter
 
 ```shell
 # start a program given an IAM Role (assumes default creds can assume role)
-$ iam-starter --role myrole --start ./my-program.sh
+$ iam-starter --role myrole --command ./my-program.sh
 
 # start a program given an IAM Role and AWS Profile with access to assume that role
-$ iam-starter --role myrole --profile dev --start ./my-program.sh
+$ iam-starter --role myrole --profile dev --command ./my-program.sh
 
 # get export commands to paste into shell to assume the role manually
 $ iam-starter --role myrole --profile dev
@@ -35,6 +35,15 @@ The desire was to accomplish this without having to configure a profile in your 
 ## Use with Docker
 
 This is primarily intended to be used outside Docker.  To run a Docker container with an assumed IAM Role, you are probably better off using [IAM-Docker-Run](https://github.com/billtrust/iam-docker-run).
+
+## Use with SSM-Starter
+
+This can be chained with [SSM-Starter](https://github.com/billtrust/ssm-starter).  The following example starts a program with the given IAM role and loads the SSM parameters for the given path into the environment, then runs your program which now has the benefit of the IAM role and the configuration loaded into the environment.
+
+```shell
+$ export AWS_REGION=us-east-1 # needed for ssm-starter
+$ iam-starter --role myrole --profile dev --command ssm-starter --ssm-name /myssmprefix/ --command ./my-program.sh
+```
 
 ## Limitations
 

@@ -10,20 +10,27 @@ from .aws_util_exceptions import RoleNotFoundError
 from .aws_util_exceptions import AssumeRoleError
 
 
+def set_environ(key, value, verbose = None):
+    os.environ[key] = value
+    if verbose:
+        print("{}={}".format(key, value))
+
+
 def start_with_credentials(
           access_key,
           secret_key,
           session_token,
           region,
-          command):
-    os.environ['AWS_ACCESS_KEY_ID'] = access_key
-    os.environ['AWS_SECRET_ACCESS_KEY'] = secret_key
-    os.environ['AWS_SESSION_TOKEN'] = session_token
+          command,
+          verbose):
+    set_environ('AWS_ACCESS_KEY_ID', access_key, verbose)
+    set_environ('AWS_SECRET_ACCESS_KEY', secret_key, verbose)
+    set_environ('AWS_SESSION_TOKEN', session_token, verbose)
     if region:
-        os.environ['AWS_DEFAULT_REGION'] = region
-        os.environ['AWS_REGION'] = region
+        set_environ('AWS_DEFAULT_REGION', region, verbose)
+        set_environ('AWS_REGION', region, verbose)
     # ensure stdout flows without being buffered
-    os.environ['PYTHONUNBUFFERED'] = '1'
+    set_environ('PYTHONUNBUFFERED', '1', verbose)
     exit_code = exec_command(command)
     return exit_code
 
@@ -63,7 +70,7 @@ def create_parser():
     parser.add_argument('--region', required=False,
                         help='The AWS region to default to')
     parser.add_argument('--verbose', action='store_true', default=False)
-    parser.add_argument('--start', nargs=argparse.REMAINDER,
+    parser.add_argument('--command', nargs=argparse.REMAINDER,
                         help='The program to execute after the IAM role is assumed')
     return parser
 
@@ -80,7 +87,7 @@ def main():
 
     region = args.region or \
              os.environ.get('AWS_REGION',
-             os.environ.get('AWS_DEFAULT_REGION', 'us-east-1'))
+             os.environ.get('AWS_DEFAULT_REGION', None))
 
     try:
         access_key, secret_key, session_token, role_arn = \
@@ -119,15 +126,19 @@ def main():
         ))
         sys.exit(1)
 
+    command = ' '.join(args.command)
+    print(command)
     exit_code = None
-    if args.start:
+    if args.command:
         exit_code = start_with_credentials(
           access_key,
           secret_key,
           session_token,
           region,
-          ' '.join(args.start)
+          command,
+          args.verbose
           )
+        print("IAM Starter - application ended with exit code {}".format(exit_code))
     else:
         print_shell_sts_commands(
           access_key,
