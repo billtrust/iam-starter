@@ -1,4 +1,4 @@
-__version__ = '0.1.2'
+__version__ = '0.2.0'
 __title__ = 'iam-starter'
 __description__ = 'A CLI which starts your program in the context of an assumed AWS IAM Role'
 __url__ = 'https://github.com/billtrust/iam-starter'
