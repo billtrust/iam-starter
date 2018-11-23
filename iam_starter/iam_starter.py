@@ -6,6 +6,7 @@ import sys
 import argparse
 import subprocess
 from . import aws_iam_utils
+from .aws_util_exceptions import ProfileParsingError
 from .aws_util_exceptions import RoleNotFoundError
 from .aws_util_exceptions import AssumeRoleError
 
@@ -49,13 +50,14 @@ def print_shell_sts_commands(
         aws_creds,
         role,
         profile):
+    print('# Run these statements in your shell')
+    print('# or specify a --command argument to execute a command within this IAM context')
     print('export AWS_ACCESS_KEY_ID="{}"'.format(aws_creds['AWS_ACCESS_KEY_ID']))
     print('export AWS_SECRET_ACCESS_KEY="{}"'.format(aws_creds['AWS_SECRET_ACCESS_KEY']))
-    print('export AWS_SESSION_TOKEN="{}"'.format(aws_creds['AWS_SESSION_TOKEN']))
-    print('# Run this to configure your shell:')
-    print('# eval $(iam-starter --role {}{})'.format(
-      role,
-      ' --profile {}'.format(profile) if profile else ''))
+    if 'AWS_SESSION_TOKEN' in aws_creds:
+        print('export AWS_SESSION_TOKEN="{}"'.format(aws_creds['AWS_SESSION_TOKEN']))
+    print('# To clear, use:')
+    print('unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN')
 
 
 def get_aws_creds(profile_name=None, role_name=None, verbose=False):
@@ -65,16 +67,13 @@ def get_aws_creds(profile_name=None, role_name=None, verbose=False):
     if profile_name:
         if verbose:
             print("Reading AWS profile {}".format(profile_name))
-        aws_creds = aws_iam_utils.get_aws_profile_credentials(profile_name)
+        aws_creds = aws_iam_utils.get_aws_profile_credentials(profile_name, verbose)
     else:
         # if a profile isn't specified, get the creds from the environment
         access_key_id = os.environ.get('AWS_ACCESS_KEY_ID', None)
         if not access_key_id:
-            msg = \
-"""No AWS profile specified and no AWS credentials found in the
-environment."""
-            print(msg)
-            raise Exception(msg)
+            msg = "No AWS profile specified and no AWS credentials found in the environment."
+            raise ProfileParsingError(msg)
         if verbose:
             print("Starting with AWS creds in environment ({})".format(
                 access_key_id
@@ -87,8 +86,9 @@ environment."""
 
     # if the profile itself specifies a role, first assume that role
     if 'role_arn' in aws_creds:
-        if verbose:
-            print("Profile {} specified role {}, assuming that role...")
+        print("Assuming role specified in profile {}: {}".format(
+            profile_name, aws_creds['role_arn']
+        ))
         aws_creds = aws_iam_utils.generate_aws_temp_creds(
             role_arn=aws_creds['role_arn'],
             aws_creds=aws_creds,
@@ -97,17 +97,20 @@ environment."""
 
     # then if --role argument given here, further assume that role
     if role_name:
+        if verbose:
+            print("Looking up role arn from role name: {}".format(role_name))
         role_arn = aws_iam_utils.get_role_arn_from_name(
             aws_creds,
             role_name,
             verbose=verbose)
+        print("Assuming role given as argument: {}".format(role_arn))
         aws_creds = aws_iam_utils.generate_aws_temp_creds(
             role_arn=role_arn,
             aws_creds=aws_creds,
             verbose=verbose
         )
     
-    return aws_creds, role_arn
+    return aws_creds
 
 
 def create_parser():
@@ -119,7 +122,7 @@ def create_parser():
     parser.add_argument('--region', required=False,
                         help='The AWS region to default to')
     parser.add_argument('--verbose', action='store_true', default=False)
-    parser.add_argument('--command', required=True, nargs=argparse.REMAINDER,
+    parser.add_argument('--command', required=False, nargs=argparse.REMAINDER,
                         help='The program to execute after the IAM role is assumed')
     return parser
 
@@ -144,12 +147,10 @@ def main():
 
     aws_creds = {}
     try:
-        aws_creds, role_arn = get_aws_creds(args.profile, args.role)
-        print(aws_creds)
-        if role_arn and args.verbose:
-            print("Role arn: {}".format(role_arn))
-        print("Generated temporary AWS credentials: {}".format(
-            aws_creds['AWS_ACCESS_KEY_ID']))
+        aws_creds = get_aws_creds(args.profile, args.role, args.verbose)
+    except ProfileParsingError as e:
+         print(e)
+         sys.exit(1)
     except RoleNotFoundError as e:
         try:
             account_id = aws_iam_utils.get_aws_account_id(args.profile)
@@ -172,18 +173,19 @@ def main():
             if args.verbose:
                 print("Error retrieving AWS Account ID: {}".format(str(e)))
             account_id = 'error'
+        credential_method = e.credential_method if hasattr(e, 'credential_method') else '(unknown)'
         print("Error assuming IAM role '{}' from account id {}, credential method: {}, error: {}".format(
             args.role,
             account_id,
-            e.credential_method,
+            credential_method,
             e
         ))
         sys.exit(1)
 
-    command = ' '.join(args.command)
-    print(command)
     exit_code = None
     if args.command:
+        command = ' '.join(args.command)
+        print(command)
         exit_code = start_with_credentials(
             aws_creds,
             region,

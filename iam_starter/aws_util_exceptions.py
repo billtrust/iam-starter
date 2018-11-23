@@ -1,3 +1,6 @@
+class ProfileParsingError(Exception):
+    pass
+
 class RoleNotFoundError(Exception):
     def __init__(self, credential_method, *args, **kwargs):
         Exception.__init__(self, *args, **kwargs)

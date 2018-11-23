@@ -1,6 +1,7 @@
 import uuid
 import boto3
 from botocore.exceptions import ClientError
+from .aws_util_exceptions import ProfileParsingError
 from .aws_util_exceptions import RoleNotFoundError
 from .aws_util_exceptions import AssumeRoleError
 
@@ -47,7 +48,7 @@ def get_boto3_session(aws_creds):
         return boto3.Session()
 
 
-def get_aws_profile_credentials(profile_name):
+def get_aws_profile_credentials(profile_name, verbose=False):
     from ConfigParser import ConfigParser
     from ConfigParser import ParsingError
     from ConfigParser import NoOptionError
@@ -55,6 +56,8 @@ def get_aws_profile_credentials(profile_name):
     from os import path
 
     aws_creds = {}
+    # the source_profile may be overridden if a source_profile is indicated in ~/.aws/config
+    source_profile = profile_name
 
     config = ConfigParser()
     config_file_path = path.join(path.expanduser("~"),'.aws/config')
@@ -62,13 +65,31 @@ def get_aws_profile_credentials(profile_name):
 
     try:
         section = 'profile {}'.format(profile_name)
-        aws_creds['role_arn'] = config.get(section, 'role_arn')
-        source_profile = config.get(section, 'source_profile')
+        if not config.has_section(section):
+            msg = "Profile {} not found in {}".format(profile_name, config_file_path)
+            raise ProfileParsingError(msg)
+
+        if not config.has_option(section, 'role_arn'):
+            if verbose:
+                print("Profile {} in ~/.aws/config does not indicate a role_arn".format(profile_name))
+        else:
+            aws_creds['role_arn'] = config.get(section, 'role_arn')
+            print("Profile {} indicates role to assume: {}".format(profile_name, aws_creds['role_arn']))
+            if config.has_option(section, 'source_profile'):
+                source_profile = config.get(section, 'source_profile')
+                print("Found profile {} in ~/.aws/config, indicated source_profile {}".format(
+                    profile_name, source_profile
+                ))
+            else:
+                msg = "Profile {} in ~/.aws/config does not indicate a source_profile needed to assume role {}".format(
+                    profile_name, aws_creds['role_arn']
+                )
+                raise ProfileParsingError(msg)
     except ParsingError:
         print('Error parsing AWS config file')
         raise
     except (NoSectionError, NoOptionError):
-        print('Unable to find AWS profile named {} in {}'.format(
+        print('Error parsing sections or options for AWS profile {} in {}'.format(
             profile_name,
             config_file_path))
         raise
@@ -80,6 +101,10 @@ def get_aws_profile_credentials(profile_name):
     try:
         aws_creds['AWS_ACCESS_KEY_ID'] = credentials.get(source_profile, 'aws_access_key_id')
         aws_creds['AWS_SECRET_ACCESS_KEY'] = credentials.get(source_profile, 'aws_secret_access_key')
+        if verbose:
+            print("Found source profile {} in ~/.aws/credentials, access key: {}".format(
+                source_profile, aws_creds['AWS_ACCESS_KEY_ID']
+            ))
     except ParsingError:
         print('Error parsing AWS credentials file')
         raise
@@ -116,20 +141,21 @@ def generate_aws_temp_creds(role_arn, aws_creds=None, verbose=False):
     session = get_boto3_session(aws_creds)
     sts_client = session.client('sts')
 
+    aws_creds = {}
     try:
         random_session = uuid.uuid4().hex
         assumed_role_object = sts_client.assume_role(
             RoleArn=role_arn,
-            RoleSessionName="docker-session-{}".format(random_session),
+            RoleSessionName="iamstarter-session-{}".format(random_session),
             DurationSeconds=3600  # 1 hour max
         )
-        access_key = assumed_role_object["Credentials"]["AccessKeyId"]
-        secret_key = assumed_role_object["Credentials"]["SecretAccessKey"]
-        session_token = assumed_role_object["Credentials"]["SessionToken"]
+        aws_creds['AWS_ACCESS_KEY_ID'] = assumed_role_object["Credentials"]["AccessKeyId"]
+        aws_creds['AWS_SECRET_ACCESS_KEY'] = assumed_role_object["Credentials"]["SecretAccessKey"]
+        aws_creds['AWS_SESSION_TOKEN'] = assumed_role_object["Credentials"]["SessionToken"]
     except Exception as e:
         if verbose:
           print(e)
         method = get_credential_method_description(session)
         raise AssumeRoleError(method, "Error assuming role {}: {}".format(role_arn, e))
 
-    return access_key, secret_key, session_token
+    return aws_creds
