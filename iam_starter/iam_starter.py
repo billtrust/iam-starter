@@ -135,9 +135,11 @@ def main():
 
     print('IAM Starter version {}'.format(about['__version__']))
 
-    args = create_parser().parse_args()
+    parser = create_parser()
+    args = parser.parse_args()
 
     if not args.profile and not args.role:
+        parser.print_help()
         print('You must specify --profile and/or --role')
         sys.exit(1)
 

@@ -23,7 +23,7 @@ $ iam-starter --profile myprofile --command ./my-program.sh
 $ iam-starter --role myrole --profile dev --command ./my-program.sh
 
 # get export commands to paste into shell to assume the role manually
-$ iam-starter --role myrole --profile dev
+$ iam-starter --role myrole
 export AWS_ACCESS_KEY_ID="ASIAI....UOCA"
 export AWS_SECRET_ACCESS_KEY="DWYnQ....h93k"
 export AWS_SESSION_TOKEN="KMWSz...8wX=="
@@ -31,6 +31,9 @@ export AWS_SESSION_TOKEN="KMWSz...8wX=="
 # note that these two are equivalent:
 $ iam-starter --profile myprofile --command aws s3 ls
 $ aws s3 ls --profile myprofile
+
+# you can use iamx as shorthand for iam-starter (less typing)
+$ iamx --role myrole --command aws s3 ls
 ```
 
 ## Motivation

@@ -34,7 +34,8 @@ setup(name=about['__title__'],
       packages=find_packages(exclude=['pypandoc']),
       entry_points={
         "console_scripts": [
-            'iam-starter = iam_starter.iam_starter:main'
+            'iam-starter = iam_starter.iam_starter:main',
+            'iamx = iam_starter.iam_starter:main',
         ]
         },
       license=about['__license__'],
