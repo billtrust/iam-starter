@@ -1,5 +1,7 @@
+import os
 import uuid
 import boto3
+from six.moves import configparser
 from botocore.exceptions import ClientError
 from .aws_util_exceptions import ProfileParsingError
 from .aws_util_exceptions import RoleNotFoundError
@@ -49,18 +51,12 @@ def get_boto3_session(aws_creds):
 
 
 def get_aws_profile_credentials(profile_name, verbose=False):
-    from ConfigParser import ConfigParser
-    from ConfigParser import ParsingError
-    from ConfigParser import NoOptionError
-    from ConfigParser import NoSectionError
-    from os import path
-
     aws_creds = {}
     # the source_profile may be overridden if a source_profile is indicated in ~/.aws/config
     source_profile = profile_name
 
-    config = ConfigParser()
-    config_file_path = path.join(path.expanduser("~"),'.aws/config')
+    config = configparser.ConfigParser()
+    config_file_path = os.path.join(os.path.expanduser("~"),'.aws/config')
     config.read([config_file_path])
 
     try:
@@ -85,17 +81,17 @@ def get_aws_profile_credentials(profile_name, verbose=False):
                     profile_name, aws_creds['role_arn']
                 )
                 raise ProfileParsingError(msg)
-    except ParsingError:
+    except configparser.ParsingError:
         print('Error parsing AWS config file')
         raise
-    except (NoSectionError, NoOptionError):
+    except (configparser.NoSectionError, configparser.NoOptionError):
         print('Error parsing sections or options for AWS profile {} in {}'.format(
             profile_name,
             config_file_path))
         raise
 
-    credentials = ConfigParser()
-    credentials_file_path = path.join(path.expanduser("~"),'.aws/credentials')
+    credentials = configparser.ConfigParser()
+    credentials_file_path = os.path.join(os.path.expanduser("~"),'.aws/credentials')
     credentials.read([credentials_file_path])
 
     try:
@@ -105,10 +101,10 @@ def get_aws_profile_credentials(profile_name, verbose=False):
             print("Found source profile {} in ~/.aws/credentials, access key: {}".format(
                 source_profile, aws_creds['AWS_ACCESS_KEY_ID']
             ))
-    except ParsingError:
+    except configparser.ParsingError:
         print('Error parsing AWS credentials file')
         raise
-    except (NoSectionError, NoOptionError):
+    except (configparser.NoSectionError, configparser.NoOptionError):
         print('Unable to find AWS profile named {} in {}'.format(
             profile_name,
             credentials_file_path))

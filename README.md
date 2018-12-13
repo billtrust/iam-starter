@@ -94,3 +94,16 @@ docker run --rm -it --entrypoint make iam-starter:build publish
 ```
 
 At the prompts, enter the username and password to the pypi.org repo.
+
+## Testing
+
+Test execution in a container by inserting your local AWS credentials into the container.
+
+```shell
+docker build -f ./Dockerfile.buildenv -t iam-starter:build .
+docker run -it -v $(cd ~/.aws; pwd):/root/.aws iam-starter:build
+# then, inside the container
+pip install awscli
+# assumes a local profile named "dev" which has access to list S3 buckets
+iam-starter --profile dev --command aws s3 ls
+```

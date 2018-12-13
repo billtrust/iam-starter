@@ -1,4 +1,4 @@
-FROM python:2.7
+FROM python:3.7
 
 RUN apt update -y && \
     apt install -y pandoc && \
@@ -7,5 +7,7 @@ RUN apt update -y && \
 WORKDIR /app
 
 COPY . .
+
+RUN python setup.py install
 
 ENTRYPOINT ["/bin/bash"]
